@@ -6,10 +6,20 @@ ultimo_resultado = None
 ia_trabajando = False
 
 
+def preprocesar(frame_copia):
+    lab = cv2.cvtColor(frame_copia, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l = clahe.apply(l)
+    lab = cv2.merge((l, a, b))
+    return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+
+
 def analizar_fondo(frame_copia):
     global ultimo_resultado, ia_trabajando
     try:
-        info_lista = DeepFace.analyze(frame_copia, actions=['age', 'gender', 'race', 'emotion'],
+        frame_mejorado = preprocesar(frame_copia)
+        info_lista = DeepFace.analyze(frame_mejorado, actions=['age', 'gender', 'race', 'emotion'],
                                       enforce_detection=False)
         ultimo_resultado = info_lista[0]
     except:
@@ -17,11 +27,17 @@ def analizar_fondo(frame_copia):
     ia_trabajando = False
 
 
+def texto(frame, txt, pos, escala=0.75):
+    cv2.putText(frame, txt, pos, cv2.FONT_HERSHEY_SIMPLEX, escala, (0, 0, 0), 4)
+    cv2.putText(frame, txt, pos, cv2.FONT_HERSHEY_SIMPLEX, escala, (255, 255, 255), 2)
+
+
 cap = cv2.VideoCapture(0)
 
+ani, ali = 0, 0
 try:
     img = cv2.imread("img.png")
-    img = cv2.resize(img, (0, 0), None, 0.18, 0.18)
+    img = cv2.resize(img, (0, 0), None, 0.22, 0.22)
     ani, ali, c = img.shape
     tiene_logo = True
 except Exception as e:
@@ -52,11 +68,10 @@ while True:
         xi, yi, w, h = region['x'], region['y'], region['w'], region['h']
         xf, yf = xi + w, yi + h
 
-        cv2.rectangle(frame, (xi, yi), (xf, yf), (255, 255, 0), 2)
-
         edad = info['age']
         emociones = info['dominant_emotion']
         race = info['dominant_race']
+        confianza_raza = int(info['race'][race])
 
         gen_dict = info['gender']
         if isinstance(gen_dict, dict):
@@ -98,10 +113,17 @@ while True:
             if race == 'middle eastern': race = 'oriente medio'
             if race == 'latino hispanic': race = 'latina'
 
-        cv2.putText(frame, str(gen), (65, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
-        cv2.putText(frame, str(edad), (75, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
-        cv2.putText(frame, str(emociones), (75, 135), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
-        cv2.putText(frame, str(race), (75, 180), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
+        color_rect = (255, 180, 0)
+        if gen == 'Hombre':
+            color_rect = (255, 100, 50)
+        elif gen == 'Mujer':
+            color_rect = (180, 100, 255)
+        cv2.rectangle(frame, (xi, yi), (xf, yf), color_rect, 2)
+
+        texto(frame, str(gen),                                     (80, 62))
+        texto(frame, str(edad),                                    (92, 110))
+        texto(frame, str(emociones),                               (92, 165))
+        texto(frame, str(race) + ' ' + str(confianza_raza) + '%',  (92, 220))
 
     cv2.imshow("Deteccion de caracteristicas faciales", frame)
 
